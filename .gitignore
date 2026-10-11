@@ -1,0 +1,99 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+dist/
+build/
+.npm/
+.pnp
+.pnp.js
+yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+.eslintcache
+.parcel-cache/
+.vite/
+vite.config.*.timestamp*
+
+# Env files
+.env
+.env.*
+backend/.env
+frontend/.env
+!.env.example
+*.pem
+*.key
+
+# Demo / generated showcase artifacts (large binaries, screenshots, frames)
+# Ignore generated outputs but keep demo scripts (*.py) and guides (*.md) tracked
+demo/*
+!demo/*.py
+!demo/*.md
+!demo/.gitkeep
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.docx
+demo/shots/
+demo/video_frames/
+
+# Docker / logs
+*.log
+docker-compose.override.yml
+
+# SQLite / local DBs
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Temp / misc
+*.tmp
+*.temp
+*.bak
+*.orig
+.cache/
+tmp/
+temp/

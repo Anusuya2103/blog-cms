@@ -1,0 +1,15 @@
+# Keep the build context small and prevent host artifacts leaking into the image
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+tests/
+.env
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+README.md

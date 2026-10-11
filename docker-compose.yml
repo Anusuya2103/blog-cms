@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: blog-cms-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: blog_cms
+      MYSQL_USER: blog_user
+      MYSQL_PASSWORD: blog_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_pass"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - blog-net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: blog-cms-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://blog_user:blog_pass@db:3306/blog_cms
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-secret-in-production}
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - blog-net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: blog-cms-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - blog-net
+
+networks:
+  blog-net:
+    driver: bridge
+
+volumes:
+  db_data:

@@ -1,0 +1,10 @@
+# Keep the build context small and prevent host artifacts leaking into the image
+node_modules/
+dist/
+.git/
+.gitignore
+.env
+Dockerfile
+.dockerignore
+README.md
+*.log

@@ -1,0 +1,149 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ${{ github.repository }}/blog-cms-backend
+  FRONTEND_IMAGE: ${{ github.repository }}/blog-cms-frontend
+
+jobs:
+  # ---------- Stage 1: Lint ----------
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt flake8
+      - name: Run flake8
+        working-directory: backend
+        run: flake8 app --max-line-length=120 --extend-ignore=E203,W503
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+  # ---------- Stage 2: Test ----------
+  test-backend:
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Run pytest
+        working-directory: backend
+        run: pytest tests/ -v
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    needs: lint-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build
+
+  # ---------- Stage 3: Build & Push Docker images ----------
+  docker-build-push:
+    runs-on: ubuntu-latest
+    needs: [test-backend, build-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  # ---------- Stage 4: Deploy ----------
+  # Calls a provider deploy hook (Render / Railway / Fly / custom) when the
+  # DEPLOY_HOOK_URL secret is configured. With no secret set the job still
+  # succeeds, so forks and contributors can run the pipeline without secrets.
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Summary
+        run: |
+          echo "Images pushed for commit ${{ github.sha }}:"
+          echo "  ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}"
+          echo "  ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+
+      - name: Trigger deploy hook
+        if: ${{ secrets.DEPLOY_HOOK_URL != '' }}
+        run: |
+          curl --fail --silent --show-error \
+               --retry 3 --retry-delay 5 --max-time 60 \
+               -X POST "${{ secrets.DEPLOY_HOOK_URL }}"
+          echo "Deploy hook triggered successfully."
+
+      - name: Deploy hook not configured
+        if: ${{ secrets.DEPLOY_HOOK_URL == '' }}
+        run: |
+          echo "::notice::DEPLOY_HOOK_URL is not set - skipping the deploy trigger."
+          echo "On a Docker host, deploy with:"
+          echo "  docker compose pull && docker compose up -d"
